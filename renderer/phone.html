@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pebble</title>
+<style>
+/* 2026-10-11 换肤「晨读纸白」：浅色纸感 + 单一主蓝，颜色只表达状态不标记功能 */
+:root { --bg:#f7f6f2; --card:#ffffff; --line:rgba(20,22,26,.1); --text:#2a2e35; --dim:#6b6f76; --accent:#1f5edc; --green:#1d9e55; }
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; } /* 自带按压反馈，关掉系统灰闪 */
+html, body { height: 100%; overflow-x: clip; }
+body { background: var(--bg); color: var(--text); font: 17px/1.7 -apple-system, "PingFang SC", sans-serif; display: flex; flex-direction: column; }
+body { --fs: 17px; } /* A−/A+ 调这个变量：回答流跟着缩 */
+/* 2026-10-11 二次紧凑（用户反馈：UI 占地太大挤掉阅读区）：
+   header/按钮整体缩一档；A−/A+ 与图标按钮改 inline-flex 同轴对齐（原先 span 内 baseline 对齐导致高低不齐） */
+header { padding: 6px 10px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+header .t { font-size: 14px; font-weight: 600; }
+header select { background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 4px 6px; font-size: 12px; max-width: 9em; }
+header .btns { display: inline-flex; align-items: center; gap: 5px; }
+header .btns button { background: #ebe9e3; color: var(--text); border: 1px solid rgba(20,22,26,.08); border-radius: 8px; padding: 6px 9px; min-width: 36px; min-height: 36px; font-size: 14px; line-height: 1; }
+header .btns button svg { display: block; } /* 图标按钮：SVG 撑正方形，触摸区靠 padding 到 30px+ */
+header .btns button:active { background: #e0ddd5; transform: scale(.93); } /* 点击反馈：变色 + 微缩 */
+/* 触摸按压反馈（2026-10-12 用户反馈「按键缺少触摸反馈」）：iOS Safari 只有页面注册过
+   touch 监听后 :active 才生效，且 :active 在触摸下不可靠——统一用 JS 加 .pressed 类 */
+header .btns button.pressed { background: #d8d4ca; transform: scale(.92); }
+footer button.pressed { background: #d8d4ca; transform: translateY(1px) scale(.98); }
+footer button.primary.pressed { background: #1a50be; }
+footer button.danger.pressed { background: rgba(208,67,58,.2); }
+#jump-latest.pressed { transform: scale(.94); }
+header .sp { flex: 1; }
+/* 图标按钮状态（2026-10-11）：开=绿描边，关=变暗；没有悬停，状态靠颜色 */
+header .btns button.state-off { opacity: .45; }
+header .btns button.state-on { border-color: rgba(29,158,85,.5); }
+/* AI 回答流（2026-10-11）：主区整个是回答列表，每问一张卡片按顺序往下铺，
+   新回答只追加不覆盖——上一个还没看完就被顶走的问题从根上解决 */
+#answers { display: flex; flex-direction: column; gap: 10px; }
+.answer-card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px 13px 12px; }
+.answer-card.err { border-color: rgba(208,67,58,.5); }
+.answer-card .head { color: var(--accent); font-size: 12px; margin-bottom: 4px; letter-spacing: .04em; display: flex; align-items: center; gap: 6px; }
+.answer-card .head::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); flex: none; }
+.answer-card .astate { color: var(--dim); font-weight: 400; }
+.answer-q { color: var(--dim); font-size: 12px; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.answer-body { font-size: calc(var(--fs) + 2px); line-height: 1.85; white-space: pre-wrap; word-break: break-word; }
+.answer-body.err { color: #d0433a; font-size: calc(var(--fs) - 3px); }
+.answer-body .ph { color: var(--dim); font-size: 13px; }
+.keyline { color: #1d4ed8; font-weight: 600; }
+/* 字幕行（2026-10-11 用户方案）：面试官 = 顶部一行半透明字幕、我 = 底部一行。
+   顶部行钉在标题位（说话时藏「Pebble」字样避免文字叠字），右边界按模型下拉实测宽度
+   让开（JS 计算，CSS 兜底 130px）——绝不遮模型切换键；都是 pointer-events:none */
+#iv-float { position: fixed; top: 6px; left: 10px; right: 130px; z-index: 30; background: rgba(31,35,40,.9); -webkit-backdrop-filter: blur(8px) saturate(130%); backdrop-filter: blur(8px) saturate(130%); border-radius: 9px; padding: 4px 10px; color: #f5e9d6; font-size: calc(var(--fs) - 3px); line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
+#iv-float .fl-head { display: none; } /* 单行化后不再要小标题，颜色区分声道 */
+header.speaking .t { visibility: hidden; } /* 字幕占用标题位时藏品牌字 */
+/* 底部字幕（2026-10-11）：收进页脚条、放在「就问这个」左边，样式与顶部字幕同款
+   （深色半透明、单行省略）；flex:1 占满状态文字右侧的剩余空间——最长顶到「已连接」左边；
+   字号定值不跟 --fs 走（页脚属导航 chrome） */
+#me-float { flex: 1; min-width: 0; background: #ebe9e3; border-radius: 9px; padding: 4px 10px; color: #6b6f76; font-size: 12px; line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* 图标按钮按功能上色（浅底低饱和深色调） */
+#btn-conv { color: #0f8e75; }
+#btn-auto.state-on { color: var(--green); border-color: rgba(29,158,85,.5); }
+/* 开始/结束面试（2026-10-11 再压缩）：整条控制栏收成 header 里的电源小图标，
+   状态靠颜色——待机=蓝（点它开始），进行中=红（点它结束） */
+#btn-main { background: rgba(31,94,220,.1); color: #1f5edc; border-color: rgba(31,94,220,.4); }
+#btn-main.on { background: rgba(208,67,58,.1); border-color: rgba(208,67,58,.45); color: #d0433a; }
+main { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 10px 12px 14px; font-size: var(--fs); }
+#empty { color: var(--dim); text-align: center; padding: 40px 16px; font-size: 14px; }
+/* 对话记录覆盖层：手动调出，平时完全不占地方 */
+#conv-sheet { position: fixed; inset: 0; z-index: 40; background: rgba(247,246,242,.98); display: flex; flex-direction: column; }
+#conv-sheet .sheet-bar { flex: none; display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--line); color: var(--accent); font-size: 14px; letter-spacing: .04em; }
+#conv-sheet .sheet-bar .tt { display: inline-flex; align-items: center; gap: 6px; }
+#conv-sheet .sheet-bar .tt svg { color: #0f8e75; }
+#conv-sheet .sheet-bar button { background: #ebe9e3; color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 6px 14px; font-size: 13px; }
+#conv-list { flex: 1; overflow-y: auto; padding: 12px 14px calc(16px + env(safe-area-inset-bottom)); }
+.conv-item { margin-bottom: 10px; max-width: 88%; clear: both; }
+.conv-item .t { color: var(--dim); font-size: 11px; margin-right: 6px; font-variant-numeric: tabular-nums; }
+.conv-item.iv { background: var(--card); border: 1px solid var(--line); border-radius: 12px 12px 12px 3px; padding: 8px 12px; margin-right: auto; color: #1f2328; }
+.conv-item.me { background: rgba(31,94,220,.07); border: 1px solid rgba(31,94,220,.2); border-radius: 12px 12px 3px 12px; padding: 8px 12px; margin-left: auto; text-align: right; color: #3d5a9e; }
+footer { border-top: 1px solid var(--line); background: var(--bg); padding: 8px 14px calc(8px + env(safe-area-inset-bottom)); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+#state { color: var(--dim); font-size: 12px; flex: none; min-width: 0; text-align: left; } /* 按内容自适应宽度：字幕最长可顶到它左边 */
+#qpreview { flex: 1 0 100%; max-height: 2.8em; overflow: hidden; color: var(--dim); font-size: 11px; line-height: 1.4; }
+footer button { background: #ebe9e3; color: var(--text); border: 1px solid rgba(20,22,26,.08); border-radius: 10px; padding: 10px 14px; min-height: 44px; font-size: 14px; white-space: nowrap; } /* 44px 触控目标（P1-5） */
+footer button.primary { background: var(--accent); border-color: var(--accent); color: #fff; margin-left: auto; } /* 字幕收起时也钉在右侧：auto 外边距吃掉剩余空间 */
+footer button.danger { background: rgba(208,67,58,.1); border-color: rgba(208,67,58,.4); color: #d0433a; }
+footer button:active { transform: translateY(1px); }
+footer button:disabled { opacity: .5; }
+/* 大纲/逐字稿分层（P0-2）：大纲浅蓝底，逐字稿独立内衬可折叠 */
+.ans-sec { border-radius: 10px; padding: 8px 11px 10px; margin-top: 8px; }
+.ans-sec:first-child { margin-top: 0; }
+.ans-sec.ans-plain { padding: 0; margin-top: 0; }
+.ans-sec.ans-outline { background: rgba(31,94,220,.07); }
+.ans-sec.ans-script { background: #faf9f6; border: 1px solid #ebe8e1; }
+.ans-sec.ans-translation, .ans-sec.ans-question-translation { background: rgba(15,142,117,.06); border: 1px solid rgba(15,142,117,.12); }
+.sec-tag { font-size: 11px; letter-spacing: .06em; color: var(--dim); margin-bottom: 4px; display: flex; align-items: center; gap: 5px; }
+.sec-tag.foldable { cursor: pointer; user-select: none; }
+.fold-arrow { font-size: 9px; }
+.ans-script.collapsed .sec-body { display: none; }
+/* 回到最新（P0-3）：翻旧回答 + 有新内容时出现 */
+#jump-latest { position: fixed; right: 14px; bottom: calc(84px + env(safe-area-inset-bottom)); z-index: 25; border: none; background: var(--accent); color: #fff; border-radius: 999px; padding: 9px 16px; font-size: 13px; box-shadow: 0 6px 20px rgba(20,22,26,.18); }
+/* ⚡ 关闭态角标（P1-4）：手机没有悬停，「关」字直接标在图标上 */
+header .btns button { position: relative; }
+header .btns button.state-off::after { content: "关"; position: absolute; top: -5px; right: -5px; background: #e4e2db; border: 1px solid rgba(20,22,26,.15); color: #6b6f76; border-radius: 7px; padding: 0 4px; font-size: 9px; line-height: 1.5; }
+/* 微交互（P2）：新卡片入场 + 浮窗滑入；「减弱动态效果」开启时全停 */
+@keyframes cardIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes floatIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: no-preference) {
+  .answer-card.anim { animation: cardIn 150ms ease; }
+  #iv-float { animation: floatIn 160ms ease; }
+}
+.off { display: none !important; }
+</style>
+</head>
+<body>
+<header>
+  <span class="t">Pebble</span>
+  <span class="sp"></span>
+  <select id="model-select" title="模型"></select>
+  <span class="btns">
+    <button id="btn-conv" title="对话记录"><svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" fill="currentColor">
+<path fill-rule="evenodd" clip-rule="evenodd" d="M8.00194 4.5529C10.6983 4.34967 13.4065 4.36301 16.1007 4.59277L17.7245 4.73124C18.951 4.83584 19.9464 5.76665 20.1329 6.9834L20.2353 7.65173C20.5829 9.91963 20.5505 12.2296 20.1392 14.4868C19.9362 15.6006 18.9661 16.41 17.834 16.41H8.85756C8.65104 16.41 8.44774 16.4611 8.26583 16.5589L4.35504 18.6606C4.12261 18.7855 3.84163 18.7791 3.61515 18.6437C3.38867 18.5083 3.25 18.2639 3.25 18V9.48269C3.25 6.90409 5.23741 4.76126 7.80871 4.56746L8.00194 4.5529ZM8 9.49998C7.30964 9.49998 6.75 10.0596 6.75 10.75C6.75 11.4403 7.30964 12 8 12C8.69036 12 9.25 11.4403 9.25 10.75C9.25 10.0596 8.69036 9.49998 8 9.49998ZM12 9.49998C11.3096 9.49998 10.75 10.0596 10.75 10.75C10.75 11.4403 11.3096 12 12 12C12.6904 12 13.25 11.4403 13.25 10.75C13.25 10.0596 12.6904 9.49998 12 9.49998ZM14.75 10.75C14.75 10.0596 15.3096 9.49998 16 9.49998C16.6904 9.49998 17.25 10.0596 17.25 10.75C17.25 11.4403 16.6904 12 16 12C15.3096 12 14.75 11.4403 14.75 10.75Z"/>
+</svg></button>
+    <button id="btn-auto" title="自动识别开关"><svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" fill="currentColor">
+<path d="M14.6041 2.76067C13.0635 2.58531 11.5079 2.58531 9.96734 2.76067L8.37201 2.94225C8.13603 2.96911 7.95151 3.15827 7.93052 3.39484L7.80789 4.77662C7.60172 7.09985 7.60172 9.43677 7.80789 11.76L7.93052 13.1418C7.95341 13.3998 8.16954 13.5976 8.42856 13.5976H10.5V21C10.5 21.2124 10.6342 21.4017 10.8347 21.4719C11.0351 21.5421 11.2581 21.478 11.3907 21.3121L11.7814 20.8229C14.1108 17.9064 15.9656 14.6408 17.2776 11.1464L17.4681 10.6392C17.5257 10.4856 17.5044 10.3135 17.411 10.1787C17.3176 10.0439 17.164 9.96343 17 9.96343H14.2869L16.6124 3.61092C16.6651 3.46694 16.6488 3.30675 16.5682 3.1763C16.4877 3.04586 16.3517 2.95959 16.1994 2.94225L14.6041 2.76067Z"/>
+</svg></button>
+    <button onclick="adj(-1)">A−</button><button onclick="adj(1)">A+</button>
+    <button id="btn-main" title="开始面试" aria-label="开始或结束面试"><svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" fill="currentColor">
+<path d="M13 3h-2v10h2V3zm4.83 2.17-1.42 1.42A6.99 6.99 0 0 1 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.05.88-3.9 2.29-5.17L5.88 5.46A8.96 8.96 0 0 0 3 12a9 9 0 0 0 18 0c0-2.74-1.23-5.2-3.17-6.83z"/>
+</svg></button>
+  </span>
+</header>
+<div id="iv-float" class="off"><div class="fl-head">面试官正在说</div><div id="iv-float-text"></div></div>
+<main id="main">
+  <div id="answers"></div>
+  <div id="empty">每个问题的 AI 参考回答会按顺序铺在这里，往上滚回看；对面说话时顶部会出现浮窗。</div>
+</main>
+<footer>
+  <span id="state">连接中…</span>
+  <div id="qpreview"></div>
+  <div id="me-float" class="off"></div>
+  <button id="btn-ask" class="primary">就问这个</button>
+  <button id="btn-stop" class="danger off">停止回答</button>
+</footer>
+<button id="jump-latest" hidden>↓ 回到最新</button>
+<div id="conv-sheet" class="off">
+  <div class="sheet-bar"><span class="tt"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="currentColor">
+<path fill-rule="evenodd" clip-rule="evenodd" d="M8.00194 4.5529C10.6983 4.34967 13.4065 4.36301 16.1007 4.59277L17.7245 4.73124C18.951 4.83584 19.9464 5.76665 20.1329 6.9834L20.2353 7.65173C20.5829 9.91963 20.5505 12.2296 20.1392 14.4868C19.9362 15.6006 18.9661 16.41 17.834 16.41H8.85756C8.65104 16.41 8.44774 16.4611 8.26583 16.5589L4.35504 18.6606C4.12261 18.7855 3.84163 18.7791 3.61515 18.6437C3.38867 18.5083 3.25 18.2639 3.25 18V9.48269C3.25 6.90409 5.23741 4.76126 7.80871 4.56746L8.00194 4.5529ZM8 9.49998C7.30964 9.49998 6.75 10.0596 6.75 10.75C6.75 11.4403 7.30964 12 8 12C8.69036 12 9.25 11.4403 9.25 10.75C9.25 10.0596 8.69036 9.49998 8 9.49998ZM12 9.49998C11.3096 9.49998 10.75 10.0596 10.75 10.75C10.75 11.4403 11.3096 12 12 12C12.6904 12 13.25 11.4403 13.25 10.75C13.25 10.0596 12.6904 9.49998 12 9.49998ZM14.75 10.75C14.75 10.0596 15.3096 9.49998 16 9.49998C16.6904 9.49998 17.25 10.0596 17.25 10.75C17.25 11.4403 16.6904 12 16 12C15.3096 12 14.75 11.4403 14.75 10.75Z"/>
+</svg>对话记录</span><button id="btn-conv-close">关闭</button></div>
+  <div id="conv-list"></div>
+</div>
+<script>
+let fs = 17;
+if (localStorage.fs) fs = +localStorage.fs;
+function adj(d) { fs = Math.max(13, Math.min(26, fs + d)); localStorage.fs = fs; apply(); document.getElementById('state').textContent = '字号 ' + fs + 'px'; } /* 点击反馈：报当前字号，下一轮轮询恢复常态文案 */
+function apply() { document.body.style.setProperty('--fs', fs + 'px'); } // 回答流一起缩
+apply();
+const qs = new URLSearchParams(location.search);
+const TOKEN = qs.get('t') || '';
+let lastTs = 0;
+let modelSig = ''; // 模型列表没变就不重建下拉，免得用户正选着被轮询重置
+let lastState = null; // 对话记录覆盖层打开时用它渲染，不用等下一次轮询
+let prevAnsLen = 0; // 新卡片出现 → 强制滚到底；其余时候只在贴底时跟滚
+
+// 分层渲染（P0-2）：「大纲：」「逐字稿：」各自成块，逐字稿可折叠照念。
+// 纯文本渲染 markdown 没用，逐行走 DOM 节点；折叠状态记在 scriptFold，轮询重画不丢
+const scriptFold = new Map(); // 卡片序号 → 是否折叠
+const FOLDABLE_RE = /^(要点：|大纲：|逐字稿：|英文大纲：|英文逐字稿：|题目中文：|中文翻译：|\d+\s*[.、．])/;
+function buildSections(el, text, idx) {
+  el.textContent = '';
+  const lines = String(text || '').split('\n');
+  if (!String(text || '').trim()) return;
+  let cur = null; // { type, body }
+  const startSec = (type, title) => {
+    const sec = document.createElement('div');
+    sec.className = 'ans-sec ans-' + type;
+    if (title) {
+      const tag = document.createElement('div');
+      tag.className = 'sec-tag' + (type === 'script' ? ' foldable' : '');
+      tag.appendChild(document.createTextNode(title));
+      if (type === 'script') {
+        const arrow = document.createElement('span');
+        arrow.className = 'fold-arrow';
+        const collapsed = scriptFold.get(idx) || false;
+        arrow.textContent = collapsed ? '▸' : '▾';
+        if (collapsed) sec.classList.add('collapsed');
+        tag.addEventListener('click', () => {
+          const nowCollapsed = sec.classList.toggle('collapsed');
+          arrow.textContent = nowCollapsed ? '▸' : '▾';
+          scriptFold.set(idx, nowCollapsed);
+        });
+        tag.appendChild(arrow);
+      }
+      sec.appendChild(tag);
+    }
+    const body = document.createElement('div');
+    body.className = 'sec-body';
+    sec.appendChild(body);
+    el.appendChild(sec);
+    cur = { type, body };
+  };
+  for (const line of lines) {
+    const t = line.trim();
+    if (t.startsWith('题目中文：')) { startSec('question-translation', '题目中文'); continue; }
+    if (t.startsWith('英文大纲：')) { startSec('outline', '英文大纲'); continue; }
+    if (t.startsWith('英文逐字稿：')) { startSec('script', '英文逐字稿 · 可照念'); continue; }
+    if (t.startsWith('中文翻译：')) { startSec('translation', '中文翻译'); continue; }
+    if (t.startsWith('大纲：')) { startSec('outline', '大纲'); continue; }
+    if (t.startsWith('逐字稿：')) { startSec('script', '逐字稿 · 可照念'); continue; }
+    if (!cur) startSec('plain', '');
+    const holder = cur.body;
+    if (holder.childNodes.length) holder.appendChild(document.createElement('br'));
+    if (cur.type !== 'script' && FOLDABLE_RE.test(t)) {
+      const b = document.createElement('b');
+      b.className = 'keyline';
+      b.textContent = line;
+      holder.appendChild(b);
+    } else {
+      holder.appendChild(document.createTextNode(line));
+    }
+  }
+}
+
+function render(s) {
+  lastState = s;
+  const main = document.getElementById('main');
+  const stick = main.scrollHeight - main.scrollTop - main.clientHeight < 80; // 只在贴底时才自动滚，翻旧回答时别抢
+  // 回答流：每问一张卡片按顺序铺，新回答追加不覆盖（2026-10-11 用户方案）
+  const feed = document.getElementById('answers');
+  const list = Array.isArray(s.answers) ? s.answers : [];
+  const grew = list.length > prevAnsLen; // 新卡片来了：不管滚到哪都带到底部看最新的（先算，循环里要用）
+  prevAnsLen = list.length;
+  feed.textContent = '';
+  list.forEach((a, idx) => {
+    const card = document.createElement('div');
+    card.className = 'answer-card' + (a.err ? ' err' : '');
+    const head = document.createElement('div');
+    head.className = 'head';
+    head.appendChild(document.createTextNode('AI 参考回答'));
+    const st = document.createElement('span');
+    st.className = 'astate';
+    st.textContent = a.pending ? '生成中…' : '';
+    head.appendChild(st);
+    const q = document.createElement('div');
+    q.className = 'answer-q' + (a.q ? '' : ' off');
+    q.textContent = a.q ? '针对：' + a.q : '';
+    const body = document.createElement('div');
+    body.className = 'answer-body' + (a.err ? ' err' : '');
+    buildSections(body, a.text || '', idx);
+    card.append(head, q, body);
+    // 入场动效只给新出现的那张卡（P2）；整场重画时旧卡不重播
+    if (idx === list.length - 1 && grew) card.classList.add('anim');
+    feed.appendChild(card);
+  });
+  document.getElementById('empty').className = list.length ? 'off' : '';
+  // 跟滚规则（2026-10-12 用户反馈「正在看的回答被顶走」）：流式文字只在贴底时跟；
+  // 新卡片出现绝不抢视口——原地追加 + 亮「回到最新」，看到哪就停在哪
+  if (stick && !grew) main.scrollTop = main.scrollHeight;
+  // 回到最新（P0-3）：翻旧回答 + 有内容时亮按钮
+  document.getElementById('jump-latest').hidden = list.length === 0 ||
+    (main.scrollHeight - main.scrollTop - main.clientHeight < 80);
+  // 字幕行（2026-10-11 用户方案）：面试官钉顶部一行、我钉底部一行，单行省略号，
+  // 只是「正在识别」的存在感提示；生成中不显示面试官行（答案卡片在流式输出）
+  const float = document.getElementById('iv-float');
+  const partial = String(s.partial || '').trim();
+  const showFloat = !!partial && !s.pending;
+  float.classList.toggle('off', !showFloat);
+  if (showFloat) {
+    // 字幕钉在标题位：右边界按模型下拉左缘让开 8px，绝不遮模型切换键
+    const selR = document.getElementById('model-select').getBoundingClientRect();
+    float.style.right = Math.round(document.documentElement.clientWidth - selR.left + 8) + 'px';
+    document.getElementById('iv-float-text').textContent = partial;
+  }
+  document.querySelector('header').classList.toggle('speaking', showFloat);
+  const meFloat = document.getElementById('me-float');
+  const mePartial = String(s.mepartial || '').trim();
+  meFloat.classList.toggle('off', !mePartial);
+  if (mePartial) meFloat.textContent = mePartial;
+  // 自动识别开关：开=绿描边，关=变暗；状态由电脑端同步
+  const btnAuto = document.getElementById('btn-auto');
+  btnAuto.className = s.autoAsk === false ? 'state-off' : 'state-on';
+  // 开始/结束面试：收成电源小图标（2026-10-11），状态靠颜色（蓝=待机 / 红=进行中），声道开关状态由电脑端同步
+  const live = s.live || {};
+  const anyOn = !!(live.interviewer || live.me);
+  const btnMain = document.getElementById('btn-main');
+  btnMain.classList.toggle('on', anyOn);
+  const mainLabel = anyOn ? '结束面试' : '开始面试';
+  btnMain.title = mainLabel;
+  btnMain.setAttribute('aria-label', mainLabel);
+  // 模型下拉：列表没变不重建；正在操作时不抢值
+  const mSel = document.getElementById('model-select');
+  const m = s.models || {};
+  if (Array.isArray(m.all) && m.all.length) {
+    const sig = m.all.join('|');
+    if (sig !== modelSig) {
+      modelSig = sig;
+      mSel.textContent = '';
+      for (const id of m.all) {
+        const o = document.createElement('option');
+        o.value = id; o.textContent = id;
+        mSel.appendChild(o);
+      }
+    }
+    if (document.activeElement !== mSel && m.current) mSel.value = m.current;
+  }
+  // 按钮跟桌面端一致：就问这个常驻（生成中点它=打断改问），停止只在生成时出现
+  const pending = !!s.pending;
+  document.getElementById('btn-stop').className = pending ? 'danger' : 'danger off';
+  document.getElementById('btn-ask').className = 'primary';
+  document.getElementById('state').textContent = s.qstate || (pending ? '正在生成回答…' : '已连接');
+  document.getElementById('qpreview').textContent = s.qpreview || '';
+}
+
+// 对话记录覆盖层：打开才渲染，数据用最近一次轮询的快照
+function openConv() {
+  const listEl = document.getElementById('conv-list');
+  listEl.textContent = '';
+  const conv = (lastState && lastState.conv) || [];
+  if (!conv.length) {
+    const empty = document.createElement('div');
+    empty.style.cssText = 'color:var(--dim);text-align:center;padding:40px 16px;font-size:14px;';
+    empty.textContent = '还没有对话内容。面试开始后，面试官和你的发言都会自动记在这里。';
+    listEl.appendChild(empty);
+  }
+  for (const e of conv) {
+    if (e.k === 'ai') continue; // AI 回答已经在主区流里，这里只放人说的话
+    const div = document.createElement('div');
+    div.className = 'conv-item' + (e.k === 'me' ? ' me' : ' iv');
+    const t = document.createElement('span'); t.className = 't'; t.textContent = e.t || '';
+    div.appendChild(t);
+    div.appendChild(document.createTextNode(e.text || ''));
+    listEl.appendChild(div);
+  }
+  listEl.scrollTop = listEl.scrollHeight;
+  document.getElementById('conv-sheet').classList.remove('off');
+}
+
+async function poll() {
+  try {
+    const res = await fetch('/api/state?t=' + encodeURIComponent(TOKEN));
+    if (res.status === 403) { document.getElementById('state').textContent = '令牌无效，请重新扫码'; return; }
+    const s = await res.json();
+    if (s.ts !== lastTs) { lastTs = s.ts; render(s); }
+  } catch (e) {
+    document.getElementById('state').textContent = '连接断开，重试中…';
+  }
+}
+
+// 手机上的动作只是把指令发回电脑，动作本身在电脑端执行（和快捷键走同一条路）
+async function post(path, payload) {
+  await fetch(path + '?t=' + encodeURIComponent(TOKEN), {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  });
+  lastTs = 0; // 强制下一次轮询重画，按钮状态立刻跟着变
+  poll();
+}
+async function act(action, btn) {
+  btn.disabled = true;
+  try { await post('/api/act', { action }); }
+  catch (e) { document.getElementById('state').textContent = '发送失败，检查 Wi-Fi'; }
+  setTimeout(() => { btn.disabled = false; }, 400);
+}
+document.getElementById('btn-ask').addEventListener('click', (e) => act('ask', e.currentTarget));
+document.getElementById('btn-stop').addEventListener('click', (e) => act('stop', e.currentTarget));
+document.getElementById('btn-main').addEventListener('click', (e) => act('toggle-interview', e.currentTarget));
+document.getElementById('btn-auto').addEventListener('click', (e) => act('toggle-autoask', e.currentTarget));
+document.getElementById('btn-conv').addEventListener('click', openConv);
+document.getElementById('btn-conv-close').addEventListener('click', () => document.getElementById('conv-sheet').classList.add('off'));
+document.getElementById('jump-latest').addEventListener('click', () => { main_jump(); });
+function main_jump() { const m = document.getElementById('main'); m.scrollTop = m.scrollHeight; }
+document.getElementById('model-select').addEventListener('change', (e) => {
+  post('/api/set-model', { model: e.target.value });
+  document.getElementById('state').textContent = '切换模型中…';
+});
+setInterval(poll, 800);
+poll();
+
+// 触摸按压反馈：touchstart 给按到的按钮加 .pressed，松手/取消统一摘掉
+// （closest 兜住 svg path 命中的情况；passive 不阻塞滚动）
+document.addEventListener('touchstart', (e) => {
+  const b = e.target.closest('button');
+  if (b) b.classList.add('pressed');
+}, { passive: true });
+const clearPressed = () => document.querySelectorAll('button.pressed').forEach((b) => b.classList.remove('pressed'));
+document.addEventListener('touchend', clearPressed, { passive: true });
+document.addEventListener('touchcancel', clearPressed, { passive: true });
+</script>
+</body>
+</html>

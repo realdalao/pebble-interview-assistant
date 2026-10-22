@@ -1,0 +1,19 @@
+{
+  "name": "interview-assist",
+  "productName": "Pebble",
+  "version": "0.1.0",
+  "description": "Pebble: dual-channel live voice transcription",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "package": "node scripts/package-mac.cjs",
+    "test": "node --test scripts/test-*.cjs"
+  },
+  "dependencies": {
+    "qrcode": "^1.5.4",
+    "ws": "^8.22.0"
+  },
+  "devDependencies": {
+    "electron": "44.4.1"
+  }
+}

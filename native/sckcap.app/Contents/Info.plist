@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleName</key><string>SCKCap</string>
+  <key>CFBundleIdentifier</key><string>local.sckcap</string>
+  <key>CFBundleExecutable</key><string>sckcap</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleShortVersionString</key><string>1.0</string>
+  <key>LSUIElement</key><true/>
+  <key>NSScreenCaptureUsageDescription</key><string>用于采集系统音频做面试转写</string>
+  <key>NSAudioCaptureUsageDescription</key><string>用于采集系统音频做面试转写</string>
+</dict>
+</plist>

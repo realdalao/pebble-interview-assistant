@@ -1,0 +1,8 @@
+{
+  "app_id": "YOUR_APP_ID",
+  "access_token": "YOUR_ACCESS_TOKEN",
+  "resource_id": "YOUR_RESOURCE_ID",
+  "endpoint": "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async",
+  "note": "Local ASR credentials; keep this file private.",
+  "api_key": "YOUR_API_KEY"
+}

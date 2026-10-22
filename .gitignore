@@ -1,0 +1,25 @@
+# Local credentials and user-specific settings
+/volcano.config.json
+/.env
+/.env.*
+
+# Dependencies, packaged applications, and local verification output
+/node_modules/
+/release/
+/artifacts/
+/scripts/profile-smoke-screenshot.png*
+*.log
+.DS_Store
+
+# Interview recordings and transcripts, if copied into the workspace
+/interview-logs/
+transcript.jsonl
+transcript-*.html
+audio.wav
+answer-diagnostics.jsonl
+*.pcm
+
+# Editor and OS files
+.idea/
+.vscode/
+Thumbs.db

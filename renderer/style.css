@@ -1,0 +1,599 @@
+:root {
+  /* 2026-10-11 换肤「晨读纸白」：浅色纸感 + 单一主蓝，颜色只表达状态不标记功能 */
+  --bg: #f7f6f2;
+  --card: #ffffff;
+  --card-border: rgba(20, 22, 26, 0.1);
+  --text: #2a2e35;
+  --dim: #6b6f76; /* 次要文字 ≥4.5:1（P1-6 对比度修正） */
+  --green: #1d9e55;
+  --amber: #b97f2e;
+  --red: #d0433a;
+  --accent: #1f5edc;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+/* 守卫：任何设了 display 的类（.modal、.answer-card）都会压过浏览器对 [hidden] 的
+   display:none，导致「设了 hidden 仍然显示」。这条保证 hidden 永远真的隐藏。 */
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 14.5px/1.65 -apple-system, "PingFang SC", "Helvetica Neue", sans-serif;
+  display: flex;
+  flex-direction: column;
+}
+#banner {
+  margin: 12px 16px 0;
+  padding: 10px 14px;
+  border: 1px solid rgba(185, 127, 46, 0.4);
+  background: rgba(232, 163, 61, 0.12);
+  color: #8a5a14;
+  border-radius: 10px;
+  font-size: 13px;
+}
+header {
+  padding: 18px 16px 10px;
+  display: flex;
+  align-items: center; /* baseline 对齐会让 SVG 图标按钮和下拉框错位，改居中 */
+  gap: 10px;
+}
+header h1 {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+header .sub {
+  font-size: 12px;
+  color: var(--dim);
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.model-select {
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 5px 8px;
+  font-size: 12px;
+  max-width: 240px;
+}
+.ghost-btn {
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.ghost-btn:hover { border-color: rgba(20, 22, 26, 0.24); }
+/* 图标按钮（2026-10-11 用户反馈）：顶栏只放图标省地方，说明全在 title 悬停里。
+   扁平单色 SVG（fill=currentColor）：状态色由 CSS 控制，跨版本渲染一致 */
+.ghost-btn.icon-btn { padding: 6px 10px; font-size: 15px; line-height: 1; }
+.ghost-btn.icon-btn svg, .toggle.icon-toggle svg { display: block; }
+.ghost-btn.has-jd::after { /* 目标岗位已设置：绿点提示，不用文字 */
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  margin-left: 3px;
+  vertical-align: super;
+}
+.ghost-btn.state-off { opacity: 0.45; } /* 自动识别关闭态：图标变暗 */
+.ghost-btn.state-on { border-color: rgba(29, 158, 85, 0.5); } /* 激活态描边 */
+.toggle.icon-toggle { padding: 6px 10px; font-size: 15px; line-height: 1; }
+main.conv-shell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 0 16px 12px;
+}
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+  padding: 10px 2px;
+  border-bottom: 1px solid var(--card-border);
+}
+.bar-gap { flex: 1; }
+.meter.mini { position: relative; width: 56px; height: 4px; margin: 0; flex: none; }
+.check-mini { font-size: 12px; color: var(--dim); display: flex; align-items: center; gap: 5px; cursor: pointer; }
+/* 下面这批工具条控件之前完全没有样式（浏览器默认按钮），和整体配色脱节——补齐 */
+.dot { width: 8px; height: 8px; border-radius: 50%; background: #c9c6bd; flex: none; }
+.dot.live { background: var(--green); }
+.dot.error { background: var(--red); }
+.dot.reconnecting { background: var(--amber); }
+.toggle {
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 6px 16px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.toggle:hover { border-color: rgba(20, 22, 26, 0.24); }
+.toggle.on {
+  background: rgba(29, 158, 85, 0.12);
+  border-color: rgba(29, 158, 85, 0.5);
+  color: #157a42;
+}
+.src-select {
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 5px 8px;
+  font-size: 12px;
+}
+.meter-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--accent); border-radius: 2px; }
+.meter-fill.hot { background: var(--amber); }
+.meter-fill.clip { background: var(--red); }
+.meter-peak { position: absolute; top: 0; bottom: 0; width: 2px; background: rgba(0, 0, 0, 0.35); }
+.fix-btn {
+  border: 1px solid rgba(185, 127, 46, 0.45);
+  background: rgba(232, 163, 61, 0.12);
+  color: #8a5a14;
+  border-radius: 999px;
+  padding: 5px 13px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.no-signal { color: var(--amber); font-size: 12px; }
+.bar .muted { font-size: 12px; color: var(--dim); }
+
+/* 对话流：只放面试官和我的气泡（2026-10-10 起 AI 回答独立成框）。同一人连续说的
+   几段并进同一个气泡（合并逻辑在 app.js appendConv），对话就是干净的「一问一答」回合。
+   面试官是白底左气泡、我是淡蓝右气泡，靠「对齐 + 颜色」区分。时间戳压到最弱。 */
+.conv {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 4px 22px;
+}
+.conv-empty { color: var(--dim); font-size: 13px; line-height: 1.8; padding: 6px 2px; }
+.conv-item {
+  max-width: 72%;
+  padding: 10px 14px;
+  border-radius: 14px;
+  font-size: 15.5px;
+  line-height: 1.75;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.conv-item .t { color: var(--dim); font-size: 11px; margin-right: 8px; font-variant-numeric: tabular-nums; }
+.conv-item.iv {
+  align-self: flex-start;
+  background: #ffffff;
+  border: 1px solid var(--card-border);
+  border-bottom-left-radius: 5px;
+  color: #1f2328; /* 面试官的话是要回答的对象，文字用最深 */
+}
+.conv-item.me {
+  align-self: flex-end;
+  background: rgba(31, 94, 220, 0.07);
+  border: 1px solid rgba(31, 94, 220, 0.2);
+  border-bottom-right-radius: 5px;
+  color: #3d5a9e; /* 我的话属于背景信息，蓝灰弱化，和 AI/面试官拉开层级 */
+}
+.conv-item.live { opacity: 0.5; }
+/* AI 回答流（2026-10-11 用户方案）：主区整个就是回答列表，每问一张卡片按顺序往下铺。
+   新回答只追加不覆盖——上一个回答没看完的问题从根上解决。流式期间只在「用户本来
+   贴着底部」时才跟滚，往上翻旧回答时不会被新内容拽走（跟滚逻辑在 app.js）。 */
+.answers {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px 4px 22px;
+}
+.answers[hidden] { display: none; }
+.answers-empty { color: var(--dim); font-size: 13px; line-height: 1.8; padding: 6px 2px; }
+.answer-card {
+  flex: none;
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  padding: 13px 18px 15px;
+}
+.answer-card.err { border-color: rgba(208, 67, 58, 0.5); }
+.answer-head {
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.answer-head::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex: none;
+}
+.answer-state { color: var(--dim); font-weight: 400; letter-spacing: 0; }
+.answer-q {
+  color: var(--dim);
+  font-size: 12px;
+  margin: -3px 0 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.answer-body { font-size: 18px; line-height: 1.9; white-space: pre-wrap; word-break: break-word; }
+.answer-body.err { color: var(--red); font-size: 13px; }
+/* 要点行做成标签底色，扫读时一眼看到结论。保持 inline：流式渲染时行之间是 <br>，
+   换成 block 会和 <br> 叠出多余的空行 */
+.answer-body .keyline {
+  color: #1d4ed8;
+  font-weight: 600;
+  background: rgba(31, 94, 220, 0.08);
+  border-radius: 5px;
+  padding: 1px 7px;
+}
+/* 面试官语音浮窗：深色chip 悬浮在工具条正下方（2026-10-11 用户方案）——
+   浅色页面上深底亮字对比最强，top 由 JS 按工具条实际底边计算，永不遮按钮。 */
+#iv-float {
+  position: fixed;
+  left: 20px;
+  right: 20px;
+  top: 64px;
+  z-index: 25;
+  background: rgba(31, 35, 40, 0.9);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  backdrop-filter: blur(18px) saturate(140%);
+  border-radius: 12px;
+  padding: 10px 14px;
+  color: #f5e9d6;
+  font-size: 15px;
+  line-height: 1.7;
+  max-height: 5.6em;
+  overflow-y: auto;
+}
+#iv-float .fl-head { color: rgba(245, 233, 214, 0.6); font-size: 11px; letter-spacing: 0.04em; margin-bottom: 2px; }
+/* JD 已设置：右上角小圆点徽标（钉在按钮角落，不挤图标） */
+.ghost-btn.has-jd::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 0 2px var(--bg);
+}
+/* 顶栏图标按功能上色（2026-10-11 用户反馈「按钮颜色都一样可读性不强」）：
+   --ic 决定图标色，悬停边框同色相呼应；⚡ 走状态色（开绿/关灰）。
+   换肤后用低饱和深色调，浅底上够对比、整体不发花。 */
+.ghost-btn.icon-btn { color: var(--ic, var(--text)); }
+.ghost-btn.icon-btn:hover { border-color: color-mix(in srgb, var(--ic, var(--text)) 45%, transparent); }
+#jd-btn { --ic: #b97f2e; }        /* 目标岗位：琥珀 */
+#profile-btn { --ic: #3b6fc4; }   /* 我的档案：蓝 */
+#conv-btn { --ic: #0f8e75; }      /* 对话记录：青 */
+#rec-btn { --ic: #7c5cd6; }       /* 面试记录：紫 */
+#qr-btn { --ic: #c26a1a; }        /* 手机投屏：橙 */
+#autoask-btn.state-on { color: var(--green); }
+#autoask-btn.state-on { border-color: rgba(29, 158, 85, 0.5); }
+#autoask-btn.state-off { color: #9a968c; }
+/* 工具条：声道图标闲置时带低饱和身份色，开启后仍走绿色「活着」语义 */
+.toggle.icon-toggle { color: #838a97; }
+#tog-interviewer { color: #56749f; }
+#tog-me { color: #a8707e; }
+#tog-interviewer.on, #tog-me.on { color: #157a42; }
+#show-me { color: #2e8f82; }
+/* 关闭态：变暗变灰 + 自动带「关」角标（见 .toggle.icon-toggle.state-off::after），与「自动识别」一致 */
+#show-me.state-off { opacity: 0.45; color: #9a968c; }
+/* 对话记录：桌面作为右侧常驻侧栏（默认展开，工具栏对话图标可收起）；手机保持全屏覆盖层。
+   主区与侧栏并排在 .stage 里，.bar / .foot / .q-bar 仍在 main 里横向贯穿。 */
+.stage {
+  position: relative; /* 让对话记录浮层相对主区定位：不盖顶栏/底栏，也不挤压回答流 */
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+@media (min-width: 721px) {
+  /* 桌面：对话记录作为右侧并排侧栏（flex 子项），回答流在剩余空间内完整全宽、内容不遮挡；
+     侧栏固定宽、可一键收起（hidden → display:none，收起后回答流占满全宽） */
+  .stage { flex-direction: row; }
+  #conv {
+    position: static;
+    flex: none;
+    width: 360px;
+    background: var(--bg);
+    border-left: 1px solid var(--card-border);
+    box-shadow: -2px 0 12px rgba(0, 0, 0, 0.06);
+    padding: 18px 14px 22px;
+  }
+}
+@media (max-width: 720px) {
+  .conv {
+    position: fixed;
+    inset: 0;
+    z-index: 45;
+    background: var(--bg);
+    padding: 14px 18px;
+  }
+}
+/* 收起：hidden 属性必须显式压过 .conv 的 display:flex，否则「收起」按钮失效（之前一直没生效） */
+.conv[hidden] { display: none; }
+.conv-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--accent);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--card-border);
+}
+/* 覆盖层标题：图标 + 文字（图标同顶栏对话按钮的青色） */
+.conv-title { display: inline-flex; align-items: center; gap: 6px; }
+.conv-title svg { color: #0f8e75; }
+body.hide-me .conv-item.me { display: none; }
+
+.foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 2px 0;
+  border-top: 1px solid var(--card-border);
+}
+.foot .no-signal { flex: 1 0 100%; }
+.len-switch { display: inline-flex; gap: 6px; }
+.len-switch button {
+  border: 1px solid var(--card-border);
+  background: transparent;
+  color: var(--dim);
+  border-radius: 999px;
+  padding: 3px 11px;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.len-switch button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+/* 判停状态条：做成一条独立的条，别让它看起来像对话里的一句话 */
+.q-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+  padding: 9px 12px;
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  font-size: 12.5px;
+  color: var(--dim);
+}
+.q-bar .text-button {
+  margin-left: auto; /* 两个按钮互斥（只显示一个），推到最右 */
+  border: 1px solid var(--card-border);
+  background: transparent;
+  color: var(--text);
+  border-radius: 8px;
+  padding: 5px 12px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.q-bar .text-button + .text-button { margin-left: 0; }
+.q-bar .text-button:hover { border-color: rgba(20, 22, 26, 0.26); }
+/* 手动模式（P1-4）：琥珀色边 + 「手动」徽标，一眼知道自动识别已关 */
+.q-bar.manual { border-color: rgba(185, 127, 46, 0.5); }
+.manual-badge {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(232, 163, 61, 0.15);
+  border: 1px solid rgba(185, 127, 46, 0.5);
+  color: #8a5a14;
+  border-radius: 5px;
+  padding: 1px 7px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  flex: none;
+}
+.q-preview { flex: 1 1 100%; min-width: 0; max-height: 2.8em; overflow: hidden; color: var(--dim); font-size: 12px; line-height: 1.4; white-space: normal; overflow-wrap: anywhere; }
+
+/* 大纲 / 逐字稿分层（P0-2）：大纲浅蓝底扫读，逐字稿独立内衬可折叠照念 */
+.ans-sec { border-radius: 10px; padding: 9px 13px 11px; margin-top: 10px; }
+.ans-sec:first-child { margin-top: 0; }
+.ans-sec.ans-plain { padding: 0; margin-top: 0; }
+.ans-sec.ans-outline { background: rgba(31, 94, 220, 0.07); }
+.ans-sec.ans-script { background: #faf9f6; border: 1px solid #ebe8e1; }
+.ans-sec.ans-translation, .ans-sec.ans-question-translation { background: rgba(15, 142, 117, 0.06); border: 1px solid rgba(15, 142, 117, 0.12); }
+.sec-tag { font-size: 11px; letter-spacing: 0.06em; color: var(--dim); margin-bottom: 5px; display: flex; align-items: center; gap: 5px; }
+.sec-tag.foldable { cursor: pointer; user-select: none; }
+.sec-tag.foldable:hover { color: var(--text); }
+.fold-arrow { font-size: 9px; }
+.ans-script.collapsed .sec-body { display: none; }
+
+/* 回到最新（P0-3）：翻旧回答 + 有新内容时出现 */
+.jump-latest {
+  position: fixed;
+  right: 22px;
+  bottom: 96px;
+  z-index: 25;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 999px;
+  padding: 8px 15px;
+  font-size: 12.5px;
+  cursor: pointer;
+  box-shadow: 0 6px 20px rgba(20, 22, 26, 0.18);
+}
+.jump-latest:hover { background: #1a50be; }
+
+/* ⚡ 关闭态角标（P1-4）：图标变暗之外再加「关」字，不用悬停也知道 */
+.icon-btn { position: relative; }
+.icon-btn.state-off::after,
+.toggle.icon-toggle.state-off::after {
+  content: "关";
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  background: #e4e2db;
+  border: 1px solid rgba(20, 22, 26, 0.15);
+  color: #6b6f76;
+  border-radius: 7px;
+  padding: 0 4px;
+  font-size: 9px;
+  line-height: 1.5;
+  letter-spacing: 0;
+}
+
+/* 桌面字号调节（P1-7）：A−/A+ 调这个偏移量，回答和对话一起缩 */
+body { --fs-adj: 0px; }
+.answer-body { font-size: calc(18px + var(--fs-adj)); }
+.conv-item { font-size: calc(15.5px + var(--fs-adj)); }
+.fs-switch { display: inline-flex; gap: 5px; }
+.fs-switch button {
+  border: 1px solid var(--card-border);
+  background: transparent;
+  color: var(--dim);
+  border-radius: 8px;
+  padding: 3px 9px;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.fs-switch button:hover { color: var(--text); border-color: rgba(20, 22, 26, 0.24); }
+
+/* 微交互（P2）：新卡片入场 + 浮窗滑入；系统开了「减弱动态效果」就全停 */
+@keyframes cardIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes floatIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: no-preference) {
+  .answer-card.anim { animation: cardIn 150ms ease; }
+  #iv-float { animation: floatIn 160ms ease; }
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(20, 22, 26, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.modal-box {
+  width: min(680px, calc(100vw - 48px));
+  max-height: calc(100vh - 64px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: 14px;
+  padding: 18px 20px;
+}
+.modal-box h2 { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+/* 二级菜单图标跟顶栏按钮同色系（2026-10-11）：弹窗标题一眼对应到打开它的按钮 */
+.modal-box h2 svg { flex: none; }
+#profile-modal h2 svg { color: #3b6fc4; }
+#jd-modal h2 svg { color: #b97f2e; }
+#rec-modal h2 svg { color: #7c5cd6; }
+.modal-box .muted { font-size: 12px; color: var(--dim); line-height: 1.6; }
+#profile-text, #jd-text {
+  width: 100%;
+  min-height: 280px;
+  resize: vertical;
+  background: #fcfbf9;
+  color: var(--text);
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.6;
+}
+#jd-text { min-height: 200px; }
+#profile-text:focus, #jd-text:focus { outline: none; border-color: rgba(31, 94, 220, 0.55); }
+.modal-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.modal-actions #profile-saved { margin-right: auto; }
+.primary-btn {
+  border: none;
+  border-radius: 999px;
+  padding: 7px 18px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  background: var(--accent);
+  color: #fff;
+}
+/* 运行中变成「结束面试」：用红色，和「开始」区分开，别让人误以为还能再点一次开始 */
+.primary-btn.on { background: #d0433a; }
+.bar .primary-btn { flex: none; margin-right: 2px; }
+.primary-btn:disabled { opacity: 0.4; cursor: default; }
+
+#rec-folder { display: inline-flex; align-items: center; gap: 5px; }
+#rec-folder svg { flex: none; }
+
+.modal-box.wide { width: min(1000px, calc(100vw - 48px)); }
+.rec-body {
+  display: grid;
+  grid-template-columns: minmax(0, 260px) minmax(0, 1fr);
+  gap: 14px;
+  min-height: 420px;
+}
+.rec-list {
+  border-right: 1px solid var(--card-border);
+  padding-right: 10px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 52vh;
+}
+.rec-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text);
+  border-radius: 10px;
+  padding: 8px 10px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.rec-item:hover { background: #f0eee8; }
+.rec-item.on { background: rgba(31, 94, 220, 0.08); border-color: rgba(31, 94, 220, 0.4); }
+.rec-item strong { font-weight: 500; font-size: 13px; }
+.rec-item .muted { font-size: 11.5px; }
+.rec-conv {
+  overflow-y: auto;
+  max-height: 52vh;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-right: 4px;
+}
+@media (max-width: 720px) {
+  .rec-body { grid-template-columns: minmax(0, 1fr); }
+  .rec-list { border-right: none; max-height: 24vh; }
+}
